@@ -1,0 +1,46 @@
+name: Generate SBOM
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    name: Generate CycloneDX SBOM
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Build project
+        run: mvn -B package --no-transfer-progress -DskipTests
+
+      - name: Install Snyk CLI
+        run: npm install -g snyk
+
+      - name: Generate CycloneDX SBOM
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          mkdir -p docs
+          snyk sbom --format=cyclonedx1.6+json --json-file-output=docs/sbom.cdx.json
+
+      - name: Upload SBOM as CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx-json
+          path: docs/sbom.cdx.json
